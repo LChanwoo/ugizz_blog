@@ -4,14 +4,10 @@ import SocialIcon from '@/components/social-icons'
 import Image from '@/components/Image'
 
 interface Props {
-  children: ReactNode
-  // content: Omit<Authors[], 'body'>
   authors: Authors[]
 }
 
-export default function AuthorLayout({ children, authors }: Props) {
-  // const { name, avatar, occupation, company, email, twitter, linkedin, github } = content[0]
-
+export default function AuthorLayout({ authors }: Props) {
   return (
     <>
       <div className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -21,25 +17,30 @@ export default function AuthorLayout({ children, authors }: Props) {
           </h1>
         </div>
         <div className="items-start space-y-2 xl:grid xl:grid-cols-3 xl:gap-x-8 xl:space-y-0">
-          {authors.map((author) => (
-            <div className="flex flex-row items-center space-x-2 pt-8">
+          {authors.map((author, i) => (
+            <div className="flex flex-row items-center space-x-2 pt-8" key={i}>
               <Image
                 src={author.avatar!}
                 alt="avatar"
                 width={192}
                 height={192}
                 className="h-48 w-48 rounded-full"
+                key={i}
               />
               <h3 className="pb-2 pt-4 text-2xl font-bold leading-8 tracking-tight">
                 {author.name}
               </h3>
-              <div className="text-gray-500 dark:text-gray-400">{author.occupation}</div>
-              <div className="text-gray-500 dark:text-gray-400">{author.company}</div>
+              <div className="text-gray-500 dark:text-gray-400" key={i}>
+                {author.occupation}
+              </div>
+              <div className="text-gray-500 dark:text-gray-400" key={i}>
+                {author.company}
+              </div>
               <div className="flex space-x-3 pt-6">
-                <SocialIcon kind="mail" href={`mailto:${author.email}`} />
-                <SocialIcon kind="github" href={author.github} />
-                <SocialIcon kind="linkedin" href={author.linkedin} />
-                <SocialIcon kind="twitter" href={author.twitter} />
+                <SocialIcon kind="mail" key={i} href={`mailto:${author.email}`} />
+                <SocialIcon kind="github" key={i} href={author.github} />
+                <SocialIcon kind="linkedin" key={i} href={author.linkedin} />
+                <SocialIcon kind="twitter" key={i} href={author.twitter} />
               </div>
             </div>
           ))}
