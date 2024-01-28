@@ -1,0 +1,1 @@
+tailwind nextjs starter template
