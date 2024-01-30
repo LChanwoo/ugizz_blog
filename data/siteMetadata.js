@@ -8,14 +8,14 @@ const siteMetadata = {
   theme: 'system', // system, dark or light
   siteUrl: 'https://ugizz-blog.vercel.app',
   // siteRepo: 'https://github.com/timlrx/tailwind-nextjs-starter-blog',
-  // siteLogo: '/static/images/logo.png',
-  // socialBanner: '/static/images/twitter-card.png',
+  siteLogo: '/static/images/logo.png',
+  socialBanner: '/static/images/logo.png',
   // mastodon: 'https://mastodon.social/@mastodonuser',
   // email: 'address@yoursite.com',
   github: 'https://github.com/ugizz',
   // twitter: 'https://twitter.com/Twitter',
   // facebook: 'https://facebook.com',
-  // youtube: 'https://youtube.com',
+  //youtube: 'https://youtube.com',
   // linkedin: 'https://www.linkedin.com',
   locale: 'ko-KR',
   analytics: {
@@ -73,18 +73,18 @@ const siteMetadata = {
     },
   },
   search: {
-    provider: 'kbar', // kbar or algolia
-    kbarConfig: {
-      searchDocumentsPath: 'search.json', // path to load documents to search
-    },
-    // provider: 'algolia',
-    // algoliaConfig: {
-    //   // The application ID provided by Algolia
-    //   appId: 'R2IYF7ETH7',
-    //   // Public API key: it is safe to commit it
-    //   apiKey: '599cec31baffa4868cae4e79f180729b',
-    //   indexName: 'docsearch',
+    // provider: 'kbar', // kbar or algolia
+    // kbarConfig: {
+    //   searchDocumentsPath: 'search.json', // path to load documents to search
     // },
+    provider: 'algolia',
+    algoliaConfig: {
+      // The application ID provided by Algolia
+      appId: 'OF6C0KQZRO',
+      // Public API key: it is safe to commit it
+      apiKey: 'd9ed7634585f0f6b0de690fe4576f68f',
+      indexName: 'blog',
+    },
   },
 }
 
