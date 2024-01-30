@@ -1,5 +1,7 @@
 ## 📌 commit, merge 규칙
 
+테스트
+
 1. commit - [imoji] [tag] : [yy.mm.dd] [name] [description]
 2. merge - 🔀 merge : [yy.mm.dd] [name] [description]
 
