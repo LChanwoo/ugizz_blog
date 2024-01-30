@@ -12,11 +12,12 @@ export default function Page() {
   const author3 = allAuthors.find((p) => p.name === '전상언') as Authors
   const author4 = allAuthors.find((p) => p.name === '최현용') as Authors
   const authors = [author, author2, author3, author4]
-
+  const teampage = allAuthors.find((p) => p.name === 'team') as Authors
+  const mainContent = coreContent(teampage)
   return (
     <>
-      <AuthorLayout authors={authors}>
-        {/* <MDXLayoutRenderer code={author4.body.code} /> */}
+      <AuthorLayout content={mainContent} authors={authors}>
+        <MDXLayoutRenderer code={teampage.body.code} />
       </AuthorLayout>
     </>
   )

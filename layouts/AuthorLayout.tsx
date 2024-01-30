@@ -5,10 +5,13 @@ import Image from '@/components/Image'
 import Link from 'next/link'
 
 interface Props {
+  content: Omit<Authors, '_id' | '_raw' | 'body'>
   authors: Authors[]
+  children: ReactNode
 }
 
-export default function AuthorLayout({ authors }: Props) {
+export default function AuthorLayout({ children, content, authors }: Props) {
+  const { name, avatar, occupation, company, email, twitter, linkedin, github } = content
   return (
     <>
       <div className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -47,6 +50,10 @@ export default function AuthorLayout({ authors }: Props) {
               </div>
             </div>
           ))}
+        </div>
+        <div className="prose max-w-none pb-8 pt-8 dark:prose-invert xl:col-span-2">
+          <h2> 관련 페이지</h2>
+          {children}
         </div>
       </div>
     </>
