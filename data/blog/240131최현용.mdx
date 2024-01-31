@@ -1,0 +1,88 @@
+---
+title: 'nodejs study 1'
+date: '2024-01-31'
+tags: ['nodejs']
+authors: ['최현용']
+category: 'study'
+draft: false
+summary: 'nodejs 배열, 제어문, 함수'
+---
+
+Array data type (배열)
+
+```jsx
+var arr = ['A','B','C','D'];
+console.log(arr[0]); // 0부터 인덱싱
+console.log(arr[3]);
+arr[2] = 3; // 수정
+console.log(arr);
+console.log(arr.length);
+arr.push('E'); // 추가
+console.log(arr);
+```
+
+배열과 반복문
+
+```jsx
+var number = [1,400,12,34,5];
+var i = 0;
+var total = 0;
+while(i < number.length){
+	total = total + number[i];
+	i = i + 1;
+}
+console.log(`total : ${total}`);
+```
+
+디렉토리 내의 파일 목록 알아내기
+
+```jsx
+var testFolder = './data';
+var fs = require('fs');
+
+fs.readdir(testFolder, function(error, filelist){
+	console.log(filelist);
+})
+```
+
+글목록 출력하기
+
+```jsx
+var list = '<ul>';
+
+var i = 0;
+while(i < filelist.length){
+	list = list + `<li><a href="/?id=${filelist[i]}">${filelist[i]}</a></li>`;
+	i = i + 1;
+}
+list = list + '</ul>';
+```
+
+JavaScript 함수
+
+```jsx
+f123(); // 함수 호출
+console.log(1);
+console.log(4);
+f123();
+
+function f123(){ // 함수 생성
+	console.log(1);
+	console.log(2);
+	console.log(3);
+}
+```
+
+함수의 입력
+
+```jsx
+console.log(Math.round(1.6)); // 이렇게 함수가 입력값을 가지게 해보자
+```
+
+```jsx
+function sum(first){
+	console.log(first);
+}
+
+sum(2,4);
+```
