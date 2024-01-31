@@ -80,10 +80,10 @@ const siteMetadata = {
     provider: 'algolia',
     algoliaConfig: {
       // The application ID provided by Algolia
-      appId: 'OF6C0KQZRO',
+      appId: 'S149EP9178',
       // Public API key: it is safe to commit it
-      apiKey: 'd9ed7634585f0f6b0de690fe4576f68f',
-      indexName: 'blog',
+      apiKey: '1fb5596878b04781e13971e702e504a2',
+      indexName: 'ugizz-vercel',
     },
   },
 }
