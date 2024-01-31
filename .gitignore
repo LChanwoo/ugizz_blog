@@ -47,4 +47,3 @@ yarn-error.log*
 .contentlayer
 
 # /app
-/app/*.json
