@@ -47,3 +47,6 @@ yarn-error.log*
 .contentlayer
 
 # /lib
+/app/tag-data.json
+/app/category-data.json
+/app/categoryList-data.json
