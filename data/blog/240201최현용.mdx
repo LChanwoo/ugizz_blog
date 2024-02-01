@@ -1,0 +1,93 @@
+---
+title: '24.02.01 최현용 회고'
+date: '2024-02-01'
+tags: ['nodejs']
+authors: ['최현용']
+category: '회고'
+draft: false
+summary: 'nodejs 함수, 동기 비동기'
+---
+
+### 진행한 내용
+
+함수의 출력
+
+```jsx
+function sum(first, second){ // parameter 
+	return first+second; // 리턴은 거기서 함수를 출력, 종료
+}
+
+console.log(sum(2,4)); // argument
+```
+
+함수를 이용해서 정리
+
+```jsx
+function templateHTML(){
+	return `
+	...
+	...
+	`
+}
+```
+
+---
+
+동기와 비동기(`synchronous` & `asynchronous`)
+
+```jsx
+fs.readFile('syntax/sample.txt','utf8',function(err, result){ 
+// callback 함수가 인자로 필요함.
+
+});
+```
+
+`callback`
+
+```jsx
+function a(){
+	console.log('A');
+}
+
+var a = function(){ // 익명함수
+	console.log('A');
+}
+
+a();
+```
+
+`JavaScript`에서는 함수가 값이다.
+
+```jsx
+var a = function(){ // 익명함수
+	console.log('A');
+}
+
+function slowfunc(callback){
+	callback();
+}
+
+slowfunc(a);
+```
+
+Package Manager
+
+- NPM
+    - PM2
+
+HTML - Form
+
+
+서버로부터 데이터를 가져올 땐 `get`, 데이터를 변경, 수정, 삭제할 땐 `post`
+
+### 진행 예정 업무
+
+JavaScript 객체
+
+---
+
+### 회고
+
+Node.js를 사용하기 위해 기초적인 사용법을 익히고 있습니다. 
+다른 부분은 다른 언어에서 배운 것을 적용해서 크게 어려움이 없는데 
+동기와 비동기, callback함수는 아직 공부가 더 필요할 듯 합니다.
