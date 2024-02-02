@@ -1,0 +1,226 @@
+---
+title: '24.02.02 양수원 회고'
+date: '2024-02-02'
+tags: ['Colyseus', '서버', '체팅 서버', 'serve-index', '샘플 코드']
+authors: ['양수원']
+category: 'MDX'
+draft: false
+summary: '체팅서버 샘플 코드'
+---
+
+테스트
+
+# 24.02.02 양수원 회고
+
+### Colyseus 알아보기
+
+이번 프로젝트를 통해 처음 써보는 프레임워크다. 공식 홈페이지 문서를 통해 기본 사용법을 알아보자.
+
+> [https://docs.colyseus.io/](https://docs.colyseus.io/)
+
+- 룸 시스템 : 클라이언트에서 룸에 참여하거나 만들수 있다.
+- 상태 동기화 : 클라이언트와 서버의 상태를 동기화 한다.
+- 확장기능 : 수직 수평 으로 확장이 가능하다.
+- 클라우드에 종속적이지 않다 : 자체 서버에서 무료로 자체 호스팅 서비스를 사용할 수 있다.
+
+기본적으로 Node.js 기반이기때문에 설치가 필요하다.
+
+공식문서를 확인해봤지만 역시 백문이불여일타 한번 샘플 코드를 보면서 이해해보자
+
+### 체팅 서버 구현
+
+- Colyseus 프로젝트 생성
+
+```bash
+npm create colyseus-app@latest ./my-server
+```
+
+- 기본 src 구조는 아래와 같다.
+
+```bash
+├── app.config.ts
+├── config
+│   └── auth.ts
+├── index.ts
+├── rooms
+│   ├── MyRoom.ts
+│   └── schema
+│       └── MyRoomState.ts
+└── static
+```
+
+- 룸 폴터에 chatting_room.ts 파일을 생성
+
+```tsx
+import { Room } from 'colyseus'
+
+export class ChatRoom extends Room {
+  // 최대 연결 가능한 클라이언트 설정
+  maxClients = 4
+
+  // onCreate 함수는 방이 생성될 떄 호출되는 함수이다.
+  // 클라이언트로부터 메시지를 받아 다른 클라이언트에게 broadcast 방식으로 전달한다.
+  onCreate(options: any) {
+    console.log('ChatRoom created!', options)
+
+    this.onMessage('message', (client, message) => {
+      console.log('ChatRoom received message from', client.sessionId, ':', message)
+      this.broadcast('messages', `(${client.sessionId}) ${message}`)
+    })
+  }
+
+  // onJoin 함수는 클라이언트가 방에 입장할 때 호출된다.
+  // 입장 메시지를 모든 클라이언트에게 전달
+  onJoin(client: any) {
+    this.broadcast('messages', `${client.sessionId} joined.`)
+  }
+  // 떠날 떄 호출
+  onLeave(client: any) {
+    this.broadcast('messages', `${client.sessionId} left.`)
+  }
+  // 방이 종료될 때 호출
+  onDispose() {
+    console.log('Dispose ChatRoom')
+  }
+}
+```
+
+자 이제 방은 만들었으니, 보여질 화면을 부분을 만들어 보자.
+
+- static 폴더를 생성해서 화면에 보여질 파일을 관리 하겠다.
+- 01-chat.html 파일을 생성
+
+```html
+<!doctype html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width" />
+
+    <style>
+      body {
+        font-family: Tahoma, Geneva, sans-serif;
+      }
+    </style>
+
+    <!-- colyseus.js client -->
+    <script
+      type="text/javascript"
+      src="https://unpkg.com/colyseus.js@preview/dist/colyseus.js"
+    ></script>
+  </head>
+  <body>
+    <h1>
+      <a href="https://github.com/colyseus/colyseus-examples"
+        ><img
+          src="https://cdn.jsdelivr.net/gh/colyseus/colyseus@master/media/header.png"
+          height="100"
+          alt="colyseus"
+      /></a>
+    </h1>
+
+    <p>
+      This room doesn't use the room's state. It just broadcast messages through "broadcast" method.
+    </p>
+
+    <strong>Messages</strong><br />
+
+    <!-- 메세지 입력 인풋폼 -->
+    <form id="form">
+      <input type="text" id="input" value="" autofocus />
+      <input type="submit" value="send" />
+    </form>
+
+    <div id="messages"></div>
+
+    <script>
+      // 현재 호스트의 주소를 포트번호를 제거하고 가져온다.
+      var host = window.document.location.host.replace(/:.*/, '')
+
+      // Colyseus 클라이언트를 생성하고 WebSocket 프로토콜을 사영하여 서버에 연결한다.
+      var client = new Colyseus.Client(
+        location.protocol.replace('http', 'ws') +
+          '//' +
+          host +
+          (location.port ? ':' + location.port : '')
+      )
+
+      // "chat" 이라는 이름의 방에 참여하거나 새로만든다.
+      client.joinOrCreate('chat').then((room) => {
+        console.log('joined')
+        room.onStateChange.once(function (state) {
+          console.log('initial room state:', state)
+        })
+
+        // 서버에서 전송받은 메시지를 HTML 요소로 변환하여 화면에 출력한다.
+        room.onMessage('messages', function (message) {
+          var p = document.createElement('p')
+          p.innerText = message
+          document.querySelector('#messages').appendChild(p)
+        })
+
+        // 메세지 입력폼 서버에 전송
+        document.querySelector('#form').onsubmit = function (e) {
+          e.preventDefault()
+
+          var input = document.querySelector('#input')
+
+          console.log('input:', input.value)
+
+          // send data to room
+          room.send('message', input.value)
+
+          // clear input
+          input.value = ''
+        }
+      })
+    </script>
+  </body>
+</html>
+```
+
+이제 마지막으로 app.config 에서 설정이 필요한데, 그전에 개발환경에서 디렉토리 내부 파일에 쉽게 접근할수 있도록 serveIndex 미들웨어를 설치해보자
+
+```bash
+npm install serve-index
+```
+
+- app.config
+
+```tsx
+// 게임 서버를 초기화 하는 함수 위에서 만들었던 ChatRoom 클래스를 정의하자
+initializeGameServer: (gameServer) => {
+        /**
+         * Define your room handlers:
+         */
+        gameServer.define('my_room', MyRoom);
+
+        gameServer.define("chat", ChatRoom)
+            .enableRealtimeListing();
+    },
+
+...
+
+initializeExpress: (app) => {
+
+				...
+					// 개발 환경에서 사용하며 루트 경로에 대한 디렉토리 내용을 보여준다.
+					// 위에서 작성한 static 폴더를 serveIndex 미들웨어에 등록 하였다.
+        if (process.env.NODE_ENV !== "production") {
+            app.use('/', serveIndex(path.join(__dirname, "static"), {'icons': true}))
+            app.use('/', express.static(path.join(__dirname, "static")));
+        }
+
+        // '/colyseus' 경로에 대한 monitor 미들웨어를 등록
+        app.use("/colyseus", monitor());
+    },
+
+```
+
+## 결과 화면
+
+![체팅서버 화면1](https://cvws.icloud-content.com/B/AVMIY_BEs_q5mD2K9PfJVQri66O_ASJ0tz82ZcfjFuZPgKUbTjgNYo7W/Chatting2.png?o=AiuayEosbpimEC0rjj___Gvc1S6G4gi2WglQPS0Gbbx4&v=1&x=3&a=CAogJns5-uYw4l4c4tHDLvQ-kTrpKyYeAcztDiRRa8WwDyESbxCUz7LM1jEYlKyOztYxIgEAUgTi66O_WgQNYo7WaidF1G-BmTx1agjNb1JkYXH_zyu6WM0BEygE340-OUH7-fwyUepmLUpyJyKnxLQCZfDVOODbs7eempFQema9LCdDmQcU7LSzIYaekVnytL0QLg&e=1706876442&fl=&r=5f243c3b-fbe8-4d0e-a8d1-cd836dc45fda-1&k=V0YY4b9IgdYU6uAuUb4AfA&ckc=com.apple.clouddocs&ckz=com.apple.CloudDocs&p=65&s=zgADaArzIe8LOfsbAhI_WzYL1NU&cd=i)
+![체팅서버 화면2](https://cvws.icloud-content.com/B/AZZSBS3jaHcnKxszrt-TEGjVGa2hAau0lCcWswp9OcpE1Ax0Vw3lrvAi/Chatting1.png?o=AguUCk87Ht7jjc0BZRi2GWGt-pQtPRAEzbml8jFX93Z9&v=1&x=3&a=CAogWGs0_4DxaQJPZWSp1VvcBzCihm3n4SPpgdymMQ30G70SbxDfuLzM1jEY35WYztYxIgEAUgTVGa2hWgTlrvAiaicKXno4IM2NtoooTb_fPZz6iflV8GNY8cu_HIBldn162QEF-7vcYkNyJ4mpyr_2HLW2VMY2pmvMO_NUicCT8sSyIAzWdSSjPHWlAY09BdIQEQ&e=1706876603&fl=&r=45513219-a8d8-450b-9640-d90c48cd1afb-1&k=5Cr6yM-ijKynv85ad1-UJw&ckc=com.apple.clouddocs&ckz=com.apple.CloudDocs&p=65&s=Lp1LJTtyZF90tcJoI0USHTylpvs&cd=i)
+
+아직 알아야 될게 많지만 샘플코드를 통해 감을 잡고있다.
+
+빠르게 슥듭하면서 바로바로 프로젝트에 적용해 봐야겠다.
