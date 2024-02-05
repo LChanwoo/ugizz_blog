@@ -1,0 +1,108 @@
+---
+title: '24.02.05 이찬우 회고'
+date: '2024-02-05'
+tags: ['아키텍쳐', '서버', 'Nestjs', 'msa']
+authors: ['이찬우']
+category: '회고'
+draft: false
+summary: '마이크로서비스 기본 레포지토리 생성'
+---
+
+오늘은 김남식 차석님께서 우리 팀의 멘토가 되어 주셨습니다. 우리 팀이 원하던 멘토께서 와주셔서 기쁩니다.
+
+https://github.com/ugizz/microservice_base
+
+오늘은 마이크로서비스를 위한 베이스 레포지토리를 생성하였습니다.
+
+이 레포지토리를 포크하여, 인증, 친구, 게임 결과 저장 등을 마이크로서비스로 만들고자 합니다.
+
+이 레포지토리에는 예시 코드들이 들어 있습니다.
+
+### app.controller.ts
+
+```tsx
+import { Controller } from '@nestjs/common'
+import { AppRepository } from './app.repository'
+import { MessagePattern } from '@nestjs/microservices'
+
+@Controller()
+export class AppController {
+  constructor(private readonly appRepository: AppRepository) {}
+
+  @MessagePattern('hello')
+  async getHello(data: any): Promise<any> {
+    const { user_id, password } = data
+    return this.appRepository.getHello(user_id, password)
+  }
+}
+```
+
+microservice 기능으로 tcp 통신을 통해 ‘hello’ 라는 메시지를 수신했을 때, 유저 아이디와 패스워드를 입력받아 작업을 수행하는 메소드를 작성해보았습니다. 어떻게 하는지에 대한 예시일 뿐이므로 hello 메시지에 user_id, password 데이터를 받는데는 깊은 이유는 없습니다.
+
+### app.repository.ts
+
+```tsx
+import { Injectable } from '@nestjs/common'
+import { MysqlService } from './mysql/mysql.service'
+
+@Injectable()
+export class AppRepository {
+  constructor(private readonly mysqlService: MysqlService) {}
+
+  async getHello(user_id, password): Promise<any> {
+    const query = `
+            INSERT INTO TB_USER
+                (USER_ID, PASSWORD)
+            VALUES (?, ?);
+        `
+    const params = [user_id, password]
+    return await this.mysqlService.query(query, params)
+  }
+}
+```
+
+mysql 쿼리를 어떻게 사용하면 되는지에 대한 예시입니다.
+
+### mysql.service.ts
+
+```tsx
+import { Injectable } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import * as mysql from 'mysql2'
+@Injectable()
+export class MysqlService {
+  private connection: any
+
+  constructor(private configService: ConfigService) {
+    this.connection = mysql.createConnection({
+      host: this.configService.get<string>('DB_HOST'),
+      user: this.configService.get<string>('DB_USER'),
+      password: this.configService.get<string>('DB_PASSWORD'),
+      database: this.configService.get<string>('DB_DATABASE'),
+    })
+
+    this.connection.connect()
+    console.log('Connected to MySQL')
+  }
+
+  query(sql: string, values?: any[]): Promise<any> {
+    return new Promise((resolve, reject) => {
+      this.connection.query(sql, values, (err, results) => {
+        if (err) {
+          return reject(err)
+        }
+        resolve(results)
+      })
+    })
+  }
+  close() {
+    this.connection.end()
+  }
+}
+```
+
+mysql하고 연결하는 것을 관리하는 service class입니다.
+
+DB 정보는 .env에 저장하여 은닉하였습니다.
+
+이제 내일은 api gateway 서버 레포지토리를 작성하고, auth api를 작성하고자 합니다.
