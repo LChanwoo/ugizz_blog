@@ -1,0 +1,80 @@
+---
+title: '24.02.05 양수원 회고'
+date: '2024-02-05'
+tags: ['인증/인가', 'JWT', 'Base64', 'serve-index']
+authors: ['양수원']
+category: 'MDX'
+draft: false
+summary: 'API 인증인가'
+---
+
+# 24.02.05 양수원 회고
+
+프로젝트에 로그인 방식에 대해서 의논하다가 JWT토큰을 사용해 인증하는 방식을 사용하기로 하였다. 
+
+오늘 회고는 JWT인증 방식에 대해서 알아보자.
+
+## ✅ 인증/인가
+
+### 인증이란
+
+- **사용자가 로그인 과정을 통해 자신임을 증명하는 과정**
+- HTTP 통신은 Stateless 이기 때문에, 사용자는 매 요청마다 자신을 증명해야 한다
+
+### 인증방법
+
+- API 기반 개발 : JWT 토큰 사용
+
+### 인가란
+
+- **인증된 사용자가 어떤 권한이 있는지 확인하는 과정**
+- 특정 리소스(resource)나 기능은 권한이 있어야만 접근 가능 → 인가를 통해 수행
+
+### 인가 방법
+
+- 인증된 사용자를 대상으로, 비즈니스 로직을 통해 체크
+
+## ✅  API 기반 인증기법
+
+### JWT 기반 인증
+
+- API 요청을 할때 https 헤더에 아래와 같이 토큰의 정보를 담아 전송한다.
+
+```
+Authorization: Bearer eyJhbGci0iJIUzUxMiJ9.eyJzdl~IiOiJ0ZXN0ZXJAdGVzdC5jb20iLCJpYXQiOjE1OTU3MzM2NTcsimV4cCI6MTUSNjUSNzY1N30.Nn4dlMOVLZg79sfFACTipCPKqWmpZMZQsbNrXdJJNWkRv50_17bPLQPwhMobT4vBOG6Q3JYjhDrKFlBSaUxZOg
+```
+
+JWT는 세파트로 나누어지며, 헤더(Header), 페이로드(Payload), 서명(Sinature)로 구성되어 있다. 
+
+- 토큰을 Base64로 디코딩 하면 아래와 같다.
+
+```jsx
+{ // header
+  "typ": "JWT",
+  "alg": "HS512"
+}.
+{ // payload
+  "sub":"40288093784915d201784916a40c0001",
+  "iss": "demo app",
+  "iat":1595733657,
+  "exp":1596597657
+}.
+Nn4d1MOVLZg79sfFACTipCPKqWmpZMZQsbNrXdJJNWkRv50_17bPLQPwhMobT4vBOG6Q3JYjhDrKFlBSaUxZOg
+// signature
+```
+
+- header
+    - typ: 토큰의 타입
+    - alg: 토큰의 signature를 발급할 때 사용한 해시 알고리즘
+- payload
+    - sub: subject로, 토큰의 주인을 의미하는 값으로 유저 ID나 이메일 같은 값을 사용
+    - iss: issuer로, 토큰을 발행한 주체
+    - iat: issued at으로, 토큰이 발행된 날짜와 시간
+    - exp: expiration으로, 토큰이 만료되는 시간
+- signature
+    - 토큰을 발행한 주체 issuer가 발행한 서명으로, 토큰의 유효성 검사에 사용한다
+- 요청이 오면 본인만 가지고 있는 시크릿 키로 토큰의 유효성 검사를 진행
+    
+    ![Tocken 인증방식](https://scontent-gmp1-1.xx.fbcdn.net/v/t39.30808-6/426152135_122112376964196567_6686644397540593110_n.jpg?_nc_cat=111&ccb=1-7&_nc_sid=524774&_nc_ohc=eU6URIA7taMAX_2xPaK&_nc_ht=scontent-gmp1-1.xx&oh=00_AfAHjFm5cNtvh3pwEBSag9wbz5TyR2x8uQ2E_1uAfttJKw&oe=65C704FC)
+    
+    - header와 payload를 토큰 생성시와 동일하게 secret key를 더한 후 hash 함수를 통과시켜, 그렇게 나온 값과 클라이언트에게 받은 signature 값을 비교함으로써 인증을 진행
