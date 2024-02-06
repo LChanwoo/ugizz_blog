@@ -1,0 +1,140 @@
+---
+title: '24.02.06 이찬우 회고'
+date: '2024-02-06'
+tags: ['아키텍쳐', '서버', 'Nestjs', 'msa', 'colyseus']
+authors: ['이찬우']
+category: '회고'
+draft: false
+summary: '마이크로서비스 기본 레포지토리 생성'
+---
+
+## API Gateway
+
+https://github.com/ugizz/api-gateway-server
+
+어제 Microservice 샘플을 만든데 이어서 API 게이트웨이 서버를 만들어보고자 합니다.
+
+먼저 컨트롤러를 만들어줍니다.
+
+```tsx
+// auth.controller.ts
+import { Controller, Get } from '@nestjs/common'
+import { AuthService } from './auth.service'
+
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Get()
+  async getHello() {
+    return this.authService.hello('hello', 'world')
+  }
+}
+```
+
+그리고 서비스에서 microservice server와의 통신을 설정하고 통신할 서비스 메소드를 작성해줍니다.
+
+편의상 ‘hello’ 메시지와 함께 address, password를 보내줍니다.
+
+```tsx
+// auth.service.ts
+import { Injectable } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import { ClientProxy, ClientProxyFactory, Transport } from '@nestjs/microservices'
+
+@Injectable()
+export class AuthService {
+  private client: ClientProxy
+
+  constructor(private configService: ConfigService) {
+    this.client = ClientProxyFactory.create({
+      transport: Transport.TCP,
+      options: {
+        host: this.configService.get('AUTH_SERVICE_HOST'),
+        port: this.configService.get('AUTH_SERVICE_PORT'),
+      },
+    })
+  }
+
+  async hello(address: string, password: string): Promise<any> {
+    try {
+      return this.client.send('hello', { address, password })
+    } catch (error) {
+      console.log(error)
+      return error
+    }
+  }
+}
+```
+
+이제 microservice 서버의 콘트롤러에 ‘hello’ 메시지에 응답할 내용을 넣어줍니다.
+받은 내용 그대로 응답하도록 하였습니다.
+
+```tsx
+// microservice server app.controller.ts
+import { Controller } from '@nestjs/common'
+import { AppRepository } from './app.repository'
+import { MessagePattern } from '@nestjs/microservices'
+
+@Controller()
+export class AppController {
+  constructor(private readonly appRepository: AppRepository) {}
+
+  @MessagePattern('hello')
+  async getHello(data: any): Promise<any> {
+    const { address, password } = data
+    return 'Hello World! ' + address + ' ' + password
+    // return this.appRepository.getHello(user_id, password);
+  }
+}
+```
+
+<Image alt="" src="/static/images/240206/1.png" width={800} height={800} />
+
+응답을 보니 성공한 것 같습니다.
+
+## Colyseus Server
+
+현재 샘플코드를 분석하며 공부하고 있습니다.
+
+게임서버의 코드는 기본적으로 클라이언트와 비슷한 것 같습니다.
+
+colyseus는 @type이라고 하는 데코레이터를 지원합니다. schema의 serialize에 사용하는것 같습니다.
+
+<Image alt="" src="/static/images/240206/2.png" width={800} height={800} />
+
+### nodejs code
+
+```tsx
+class Vect3 extends Schema {
+  @type('float32')
+  x: number = 0
+
+  @type('float32')
+  y: number = 0
+
+  @type('float32')
+  z: number = 0
+}
+```
+
+### 유니티 C# code
+
+```csharp
+using Colyseus.Schema;
+
+public class Vect3 : Schema {
+	[Type(0, "float32")]
+	public float x = 0;
+
+	[Type(1, "float32")]
+	public float y = 0;
+
+	[Type(2, "float32")]
+	public float z = 0;
+}
+```
+
+이런 식으로 사용하는데, 클라와 함께 사용할 schema를 직렬화해주는 것으로 보입니다.
+
+따라서, 클라이언트도 colyseus를 공부해야 서버와 통신이 가능하다는 것으로 보입니다. 쉽게 작업할 방법을 찾아야 할 것 같습니다.
