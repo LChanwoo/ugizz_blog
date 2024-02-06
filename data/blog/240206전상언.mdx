@@ -1,0 +1,37 @@
+---
+title: '24.02.06 전상언 회고'
+date: '2024-02-06'
+tags: ['unity','C#','Mirror']
+authors: ['전상언']
+category: '회고'
+draft: false
+summary: 'unity client 작업'
+---
+
+### 진행한 내용
+
+[Client]
+
+1. 메인메뉴 만들기 (완)
+2. 메인메뉴 꾸미기 (완)
+3. 온라인 UI와 방 만들기 UI (완)
+4. Mirror 네트워크 + Room Manager 세팅 (완)
+5. 대기실 꾸미기와 UI 배치 (완)
+6. 캐릭터 색상 선택 기능 구현 (진행중)
+
+### 진행할 내용
+
+[Client]
+
+- 캐릭터 색상 선택 기능 구현 마무리 이후
+1. 게임 규칙 설정 기능 구현
+2. 게임 대기실 마무리
+3. 인게임 캐릭터 구현
+
+---
+
+### 회고
+
+- 유니티 버전이 강의에선 2019.4.10f로 실습되었는데, 2022버전으로 진행시 사용했던 컴포넌트들의 내용이 업데이트되어 수정하고 처리하게 되었습니다.
+- `hasAuthority -> 2022 버전부터 isOwned으로 수정됨.`
+- `public override void OnRoomServerConnect(NetworkConnectionToClient conn)` // NetworkConnection이 아닌 NetworkConnectionToClient으로 오버라이드 해야하는 점.
