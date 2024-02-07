@@ -1,0 +1,78 @@
+---
+title: '24.02.07 최현용 회고'
+date: '2024-02-07'
+tags: ['DB, DB SERVER']
+authors: ['최현용']
+category: '회고'
+draft: false
+summary: 'NodeJS & MySQL 연동'
+---
+
+### 진행한 내용
+
+mysql2 모듈 설치
+
+- `npm i mysql2`
+
+`test.js` 코드 작성(여기서는 `tb_user` 테이블을 검색하는 쿼리문을 작성했다)
+
+```jsx
+const http = require('http');
+const mysql = require('mysql2');
+
+var conn = mysql.createConnection({
+    host:'localhost',
+    user:'root',
+    password:'aAbBcCdD!2#',
+    database:'ugizzdb'
+});
+
+http.createServer( (req, res) => {
+
+    conn.connect();
+
+    conn.query('select * from tb_user', (err, results, fields) => {
+        if(err) throw err;
+        console.log(results);
+        res.end();
+    });
+
+}).listen(4000, () => {
+    console.log('4000 : server start!');
+});
+```
+
+`node test.js` 터미널창에서 실행
+
+```jsx
+D:\Final_Project_ugizz> node test.js
+4000 : server start!
+[
+  {
+    USER_ID: 1,
+    ADDRESS: null,
+    PASSWD: null,
+    EMAIL: null,
+    SALT: null,
+    NICKNAME: '닉네임1',
+    REFRESH_TOKEN: null,
+    CREATE_AT: 2024-02-06T06:13:59.000Z,
+    LATEST_LOGIN: 2024-02-06T06:13:59.000Z,
+    IS_GUEST: 1,
+    GUEST_ID: 'asdfqwer123'
+  }
+]
+```
+
+이후 웹브라우저에 `localhost:4000`을 검색하면 터미널 창에 위와 같이 데이터가 출력된다.
+
+### 진행 예정 업무
+
+NestJS로 통신 확장, 필요한 쿼리문 정리
+
+---
+
+### 회고
+
+지난번 생성한 데이터베이스에 nodejs를 통해 접속하고 쿼리문을 날려보았습니다.
+앞으로 DB서버 통신의 기초가 될 부분이기에 확실하게 개념을 정립하고 다듬어야 할 것 같습니다.
