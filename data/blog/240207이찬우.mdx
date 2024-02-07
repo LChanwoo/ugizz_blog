@@ -1,0 +1,161 @@
+---
+title: '24.02.07 이찬우 회고'
+date: '2024-02-07'
+tags: ['서버', 'colyseus', '게임', 'unity']
+authors: ['이찬우']
+category: '회고'
+draft: false
+summary: '서버개발을 진행하였습니다.'
+---
+
+### 서버 사이드
+
+오늘은 서버개발을 진행하였습니다. colyseus 레퍼런스들을 참고하여 코드를 작성하였습니다.
+
+```tsx
+import { Schema, type } from '@colyseus/schema'
+import { Client } from 'colyseus'
+
+export class PlayerState extends Schema {
+  // 플레이어 ID
+  @type('string') id: string = 'ID'
+  // 플레이어 닉네임
+  @type('string') nickname: string = ''
+  // 플레이어 색상
+  @type('string') color: string = 'White'
+  // 방장 여부
+  @type('boolean') isHost: boolean = false
+  // 플레이어 준비 여부
+  @type('boolean') isReady: boolean = false
+  // 술래 여부
+  @type('boolean') isSeeker: boolean = false
+  // 플레이어 이동 가능 여부
+  @type('boolean') canMove: boolean = false
+  // 플레이어 잡혔는지 여부
+  @type('boolean') isCaptured: boolean = false
+  // 스폰 지점
+  @type('number') spawnPoint: number = -1
+
+  // 플레이어 위치
+  @type('number') xPos: number = 0.0
+  @type('number') yPos: number = 0.5
+  @type('number') zPos: number = 0.0
+  @type('number') positionTimestamp: number = 0.0
+
+  // 플레이어 방향
+  @type('number') xDir: number = 0.0
+  @type('number') yDir: number = 0.5
+  @type('number') zDir: number = 0.0
+
+  private _client: Client = null
+
+  constructor(client: Client, ...args: any[]) {
+    super(args)
+    this._client = client
+  }
+  // 클라이언트 연결 해제
+  public disconnect() {
+    this._client.leave()
+  }
+  // 플레이어 초기화
+  public resetPlayer() {
+    this.canMove = false
+    this.isCaptured = false
+    this.isSeeker = false
+    this.isReady = false
+    this.spawnPoint = -1
+    this.positionTimestamp = 0
+  }
+  // 플레이어 닉네임 설정
+  public setNickname(nickname: string) {
+    this.nickname = nickname
+  }
+  // 플레이어 위치 설정
+  public setPosition(position: number[], positionTimestamp: number) {
+    this.xPos = position[0]
+    this.yPos = position[1]
+    this.zPos = position[2]
+
+    this.positionTimestamp = positionTimestamp
+  }
+  // 플레이어 방향 설정
+  public setDirection(direction: number[]) {
+    this.xDir = direction[0]
+    this.yDir = direction[1]
+    this.zDir = direction[2]
+  }
+}
+```
+
+먼저 플레이어상태를 정의하였습니다. 게임에 필요한 요소들을 넣었습니다.
+
+그리고 아래와 같이 웹소켓으로 유저로부터 요청이 들어왔을 때 처리하는 핸들러를 작성하였습니다.
+
+```tsx
+ 	private registerHandlers() {
+    // 클라이언트로부터 PlayerInput 메시지를 받았을 때, onPlayerInput 메서드를 실행.
+    this.onMessage("PlayerInput", this.onPlayerInput.bind(this));
+    // 클라이언트로부터 PlayerColorChange 메시지를 받았을 때, onPlayerColorChange 메서드를 실행.
+    this.onMessage("PlayerColorChange", this.onPlayerColorChange.bind(this));
+    // 클라이언트로부터 PlayerReady 메시지를 받았을 때, onPlayerReady 메서드를 실행.
+    this.onMessage("PlayerReady", this.onPlayerReady.bind(this));
+    // 클라이언트로부터 HostPlayerStartGame 메시지를 받았을 때, onHostPlayerStartGame 메서드를 실행.
+    this.onMessage(
+      "HostPlayerStartGame",
+      this.onHostPlayerStartGame.bind(this)
+    );
+    // 클라이언트로부터 PlayerAttack 메시지를 받았을 때, onPlayerAttack 메서드를 실행.
+    this.onMessage("PlayerAttack", this.onPlayerAttack.bind(this));
+  }
+
+  // 클라이언트로부터 받은 PlayerInput 메시지를 처리하는 메서드
+  private onPlayerInput(client: Client, playerInput: PlayerInputMessage) {
+    const playerState: PlayerState = this.state.players.get(client.sessionId);
+
+    if (playerState) {
+      // 클라이언트로부터 받은 플레이어 입력을 처리.
+      playerState.setPosition(playerInput.position, playerInput.timestamp);
+      playerState.setDirection(playerInput.direction);
+    }
+  }
+  // 클라이언트로부터 받은 색상 변경 메시지를 처리하는 메서드
+  private onPlayerColorChange(client: Client, color: string) {
+    const playerState: PlayerState = this.state.players.get(client.sessionId);
+    if (!playerState) return;
+    playerState.color = color;
+  }
+
+  // 클라이언트로부터 받은 준비 메시지를 처리하는 메서드
+  private onPlayerReady(client: Client, isReady: boolean) {
+    const playerState: PlayerState = this.state.players.get(client.sessionId);
+    if (!playerState) return;
+    playerState.isReady = isReady;
+  }
+  // 클라이언트로부터 받은 게임 시작 메시지를 처리하는 메서드
+  private onHostPlayerStartGame(client: Client) {
+    const playerState: PlayerState = this.state.players.get(client.sessionId);
+    // 게임시작 요청을 보낸 유저가 방장이고, 게임이 시작되지 않았다면고 게임 시작 카운트다운 상태로 변경
+    if (
+      playerState &&
+      playerState.isHost &&
+      this.state.gameState.currentState === GameState.WAIT_FOR_START
+    ) {
+      this.state.gameState.moveToNextState(GameState.CLOSE_COUNTDOWN);
+    }
+  }
+
+  // 클라이언트로부터 받은 공격 메시지를 처리하는 메서드
+  private onPlayerAttack(client: Client, hiderId: string) {
+    const playerState: PlayerState = this.state.players.get(client.sessionId);
+    if (playerState && playerState.isSeeker) {
+      // 공격 로직
+      this.state.seekerAttackHider(client.sessionId, hiderId);
+    }
+  }
+```
+
+현재는 이 정도만 작업을 진행한 상태이고, 앞으로 남은 작업은 게임의 상태 (게임 시작 대기, 게임 시작 카운트다운, 게임시작, 게임종료 등)를 판별하여, 각 상태에 맞게 게임을 진행할 수 있도록 만드는 코드를 작성하는 것입니다. 이 작업은 이번 주 토요일(2월 10일)까지 완성할 계획입니다.
+
+### 클라이언트 사이드
+
+클라이언트와 통신을 하는 방법을 아직은 잘 모르기 때문에, 깃허브에서 colyseus-unity 통신 예제 레포지토리(https://github.com/kevincastejon/colyseus-unity-example/tree/master/Assets/Scripts/Network)를 찾아서 연구하고 있습니다. 이번 설날(2월 9일~12일)동안 이 레포지토리와 현재 클라이언트에 Mirror network로 구성된 network manager를 분석하여 클라이언트와 서버를 연동할 수 있도록 만들 예정입니다.
