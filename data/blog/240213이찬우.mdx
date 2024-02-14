@@ -1,0 +1,69 @@
+---
+title: '24.02.13 이찬우 회고'
+date: '2024-02-13'
+tags: ['서버', '클라이언트', 'colyseus', '게임', 'unity']
+authors: ['이찬우']
+category: '회고'
+draft: false
+summary: '서버와 클라이언트 개발을 진행하였습니다.'
+---
+
+### 클라이언트 사이드
+
+<Image alt="" src="/static/images/240213/1.png" width={800} height={800} />
+
+- 플레이어 캐릭터 스폰 기능을 구현했습니다.
+- 자신의 캐릭터가 스폰될 때, 카메라가 따라가도록 만들었습니다.
+- 서버에 전송되는 플레이어의 위치를 동기화하여, 다른 플레이어의 움직임이 보이도록 구현하는데 성공하였습니다.
+- 플레이어가 방에서 나갈 시, 해당 플레이어의 캐릭터 오브젝트를 삭제하도록 하였습니다.
+
+```tsx
+public void SpawnPlayer(string sessionId)
+    {
+        float x = Random.Range(0, 2);
+        float y = Random.Range(0, 2);
+        Players[sessionId] = Instantiate(SpawnPrefab, new Vector3(x, y, 0.5f), Quaternion.identity);
+        Players[sessionId].GetComponent<MyPlayer>().SetSessionId(sessionId);
+    }
+```
+
+- 이 코드를 작성해야한다는 것을 머릿 속으로는 알고 있었는데, GetComponent 메소드의 존재를 몰라서 한참을 고생했습니다. 해결해서 매우 기쁩니다.
+- 지금은 랜덤으로 스폰지점을 생성하고 있지만, 지정된 스폰지점에서 스폰되도록 만들도록 하겠습니다.
+
+### 서버사이드
+
+플레이어의 위치값을 받는 로직을 변경하였습니다.
+
+```tsx
+//변경 전
+export class Vect3 extends Schema {
+  x: number = 0
+  y: number = 0
+  z: number = 0
+}
+
+export class Quat extends Schema {
+  x: number = 0
+  y: number = 0
+  z: number = 0
+}
+
+export class PlayerInputMessage extends Schema {
+  position = new Vect3()
+  rotation = new Quat()
+}
+
+//변경 후
+export class PlayerInputMessage {
+  public readonly x: number
+  public readonly y: number
+  public readonly z: number
+  constructor(x: number, y: number, z: number) {
+    this.x = x
+    this.y = y
+    this.z = z
+  }
+}
+```
+
+원래는 위치값과 함께 x,y,z방향(각도)를 받으려고 생각했었는데, 생각해보니 2D에서는 방향을 굳이 받을 필요가 없었습니다. 만약 필요해진다면 좌우 방향 정도는 다시 넣도록 할 예정입니다.
