@@ -1,0 +1,314 @@
+---
+title: '24.02.14 최현용 회고'
+date: '2024-02-14'
+tags: ['nestjs']
+authors: ['최현용']
+category: '회고'
+draft: false
+summary: 'nestjs dto, pipe'
+---
+
+### 진행한 내용
+
+board 모델의 id는 어떻게 할까? 데이터베이스가 있다면 자동 생성(`Auto Increment`), 지금은 데이터베이스 안 쓰므로 uuid 모듈 다운 받아서 쓰자.
+
+`npm install uuid --save`
+
+```tsx
+// boards.service.ts
+import { Injectable } from '@nestjs/common';
+import { Board, BoardStatus } from './board.model';
+import { v1 as uuid } from 'uuid';
+
+@Injectable()
+export class BoardsService {
+    private boards: Board[] = [];
+
+    getAllBoards(): Board[] {
+        return this.boards;
+    }
+
+    createBoard(title: string, description: string) {
+        const board: Board = {
+            id: uuid(),
+            title,
+            description,
+            status:BoardStatus.PUBLIC
+        }
+
+        this.boards.push(board);
+        return board;
+    } 
+}
+```
+
+`Service`에서 로직을 처리하고 `Controller`에서 불러온다
+
+### DTO(Data Transfer Object)
+
+- 계층 간 데이터 교환을 위한 객체
+- DB에서 데이터를 얻어 `Service`나 `Controller` 등으로 보낼 때 사용하는 객체
+- 데이터가 네트워크를 통해 전송되는 방법을 정의하는 객체
+- `interface`나 `class`를 이용해서 정의될 수 있다
+
+왜 쓰는가?
+
+- 데이터 유효성을 체크하는데 효율적
+- 더 안정적인 코드로 만들어 줌, 타입스크립트의 타입으로도 사용됨.
+
+
+(클래스나 구조체 만드는 이유랑 비슷한 듯?)
+
+하나의 Property를 수정하려면 다른 곳도 다 바꿔줘야 하는데(유지,보수가 힘듬) DTO를 사용하면 이 문제를 해결할 수 있다.
+
+**게시물 생성을 위한 DTO**
+
+클래스는 인터페이스와 다르게 런타임에서 작동하기 때문에 파이프와 같은 기능을 이용할 때 더 유용하므로 여기서는 클래스를 사용해서 DTO를 작성
+
+```tsx
+//create-board.dto.ts
+export class createBoardDto {
+    title: string;
+    description: string;
+}
+```
+
+작성한 DTO를 `controller`와 `service`에 적용해주자
+
+```tsx
+//boards.controller.ts
+...
+import { CreateBoardDto } from './dto/create-board.dto';
+
+...
+    @Post()
+    createBoard(
+        @Body() createBoardDto: CreateBoardDto
+        ): Board {
+            return this.boardsService.createBoard(createBoardDto)
+    }
+```
+
+```tsx
+//boards.service.ts
+...
+import { CreateBoardDto } from './dto/create-board.dto';
+
+...
+    createBoard(createBoardDto: CreateBoardDto) {
+        const {title, description} = createBoardDto;
+        const board: Board = {
+            id: uuid(),
+            title,
+            description,
+            status:BoardStatus.PUBLIC
+        }
+
+        this.boards.push(board);
+        return board;
+    }
+```
+
+ID로 특정 게시물 가져오기(CRUD)
+
+```tsx
+//boards.controller.ts
+...
+@Get('/:id')
+    getBoardById(@Param('id') id: string): Board { 
+        return this.boardsService.getBoardById(id)
+    }
+    // Param 안에 아무것도 안넣고 여러개의 변수를 가지고 할 수도 있다.
+```
+
+```tsx
+//boards.service.ts
+...
+getBoardById(id: string): Board {
+        return this.boards.find((board) => board.id === id);
+    }
+```
+
+ID로 특정 게시물 지우기(CRUD)
+
+```tsx
+//boards.controller.ts
+...
+@Delete('/:id')
+    deleteBoard(@Param('id') id: string): void {
+        this.boardsService.deleteBoard(id);
+    }
+```
+
+```tsx
+//boards.service.ts
+...
+deleteBoard(id: string): void {
+        this.boards = this.boards.filter((board) => board.id !== id);
+    }
+```
+
+특정 게시물의 상태 업데이트(CRUD)
+
+```tsx
+//boards.controller.ts
+...
+@Patch('/:id/status')
+    updateBoardStatus(
+        @Param('id') id: string,
+        @Body('status') status: BoardStatus
+    ) {
+        return this.boardsService.updateBoardStatus(id, status);
+    }
+```
+
+```tsx
+//boards.service.ts
+...
+updateBoardStatus(id: string, status: BoardStatus): Board {
+        const board = this.getBoardById(id);
+        board.status = status;
+        return board;
+    }
+```
+
+### NestJS Pipes
+
+파이프는 `@Injectable()` 데코레이터로 주석이 달린 클래스이다.
+
+파이프는 **data transformation**과 **data validation**을 위해서 사용된다.
+
+파이프는 컨트롤러 경로 처리기에 의해 처리되는 인수에 대해 작동한다.
+
+Nest는 메소드가 호출되기 직전에 파이프를 삽입하고 파이프는 메소드로 향하는 인수를 수신하고 이에 대해 작동한다.
+
+
+Data Transformation
+
+- 입력 데이터를 원하는 형식으로 변환 ( ex - 문자열에서 정수로)
+- 만약 숫자로 받길 원하는데 문자열 형식으로 온다면 파이프에서 자동으로 숫자로 바꿔준다.
+    - `String to Integer`  ex) `string '7' → Integer 7`
+
+Data Validation
+
+- 입력 데이터를 평가하고 유효한 경우 변경되지 않은 상태로 전달하면 된다. 그렇지 않으면 데이터가 올바르지 않을 때 예외를 발생시킨다.
+- 만약 이름의 길이가 10자 이하여야하는데 10자 이상되면 에러를 발생시킨다.
+
+**파이프는 위의 두 가지 모든 경우에서**
+
+라우트 핸들러(`Route Handler`)가 처리하는 인수에 대해서 작동한다.
+
+그리고 파이프는 메소드를 바로 직전에 작동해서 메소드로 향하는 인수에 대해서 변환할 것이 있으면 변환하고 유효성 체크를 위해서도 호출된다.
+
+파이프를 사용하는 법(**Binding Pipes**)
+
+- Handler-level Pipes
+    - 핸들러 레벨에서 `@UsePipes()` 데코레이터를 이용해서 사용할 수 있다.
+    - 이 파이프는 모든 파라미터에 적용이 된다. (title, description)
+- Parameter-level Pipes
+    - 파라미터 레벨의 파이프이기에 특정한 파라미터에게만 적용이 되는 파이프
+- Global-level Pipes
+    - 글로벌 파이프로서 애플리케이션 레벨의 파이프이다
+    - 클라이언트에서 들어오는 모든 요청에 적용이 된다.
+    - 가장 상단 영역인 main.ts에 넣어주면 된다.
+
+**Built-in Pipes**
+
+- Nest JS에 기본적으로 사용할 수 있게 만들어 놓은 파이프 6가지
+    - ValidationPipe
+    - ParseIntPipe
+    - ParseBoolPipe
+    - ParseArrayPipe
+    - ParseUUIDPipe
+    - DefaultValuePipe
+
+### 파이프를 이용한 유효성 체크
+
+필요한 모듈
+
+- class-validator, class-transformer
+- `npm install class-validator class-transformer --save`
+- Document 페이지
+    - https://github.com/typestack/class-validator#manual-validation
+
+```tsx
+//boards.controller.ts
+...
+@Post()
+    @UsePipes(ValidationPipe) // 추가
+    createBoard(
+        @Body() createBoardDto: CreateBoardDto
+        ): Board {
+            return this.boardsService.createBoard(createBoardDto)
+    }
+...
+```
+
+```tsx
+//create-board.dto.ts
+import { IsNotEmpty } from "class-validator";
+
+export class CreateBoardDto {
+    @IsNotEmpty()
+    title: string;
+
+    @IsNotEmpty()
+    description: string;
+}
+```
+
+
+특정 게시물을 찾을 때 없는 경우 결과 값 처리
+
+- 예외 인스턴스 생성해서 이용
+
+```tsx
+//boards.service.ts
+...
+getBoardById(id: string): Board {        
+        const found = this.boards.find((board) => board.id === id);
+
+        if(!found) {
+             throw new NotFoundException();
+        }
+        return found
+    }
+```
+
+
+```tsx
+//boards.service.ts
+...
+getBoardById(id: string): Board {        
+        const found = this.boards.find((board) => board.id === id);
+
+        if(!found) {
+             throw new NotFoundException(`Can't find Board with id ${id}`);
+        }
+        return found
+    }
+```
+
+
+에러 메세지를 띄울 수도 있다.
+
+없는 게시물을 지우려 할 때 결과 값 처리
+
+```tsx
+//boards.service.ts
+...
+deleteBoard(id: string): void {
+        const found = this.getBoardById(id); // 추가, id -> found.id로 수정
+        this.boards = this.boards.filter((board) => board.id !== found.id);
+    }
+```
+
+### 진행 예정 업무
+
+typeORM, 데이터베이스와 연동
+
+---
+
+### 회고
+
+Nest JS를 사용하기 위해 기초적인 사용법을 익히고 있습니다. 
