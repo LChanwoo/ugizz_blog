@@ -1,0 +1,291 @@
+---
+title: '24.02.16 양수원 회고'
+date: '2024-02-16'
+tags: ['AWS', 'CI/CD', 'Docker', 'workflow']
+authors: ['양수원']
+category: 'MDX'
+draft: false
+summary: '도커를 이용한 AWS 배포 자동화(CI/CD)'
+---
+
+# 24.02.16 양수원 회고
+
+## 도커를 이용한 AWS 배포 자동화(CI/CD)
+
+### 구성도
+
+![구성도](https://scontent-gmp1-1.xx.fbcdn.net/v/t39.30808-6/427811194_122119689794196567_3554843344073602688_n.jpg?stp=cp6_dst-jpg_p526x296&_nc_cat=101&ccb=1-7&_nc_sid=524774&_nc_ohc=e7KKcqgSItsAX85Sobe&_nc_ht=scontent-gmp1-1.xx&oh=00_AfDHKwaU_xu6EUDbdQyLXg_5dj94okpRGVJYlQCcD6ItCw&oe=65D399B6)
+
+1. 로컬 pc에서 개발후 Github에 push 하게되면
+2. Github Action이 동작한다. (workflow)
+3. Github Container Registry에 소스를 받은 후 Doker로 이미지를 빌드한다.
+4. 빌드된 이미지를 EC2에 등록된 Runner가 복사된다.
+5. 기존 이미지를 삭제하고 새로운 이미지로 실행을 한다.
+
+### Dockerfile 생성
+
+> 참조 : [https://docs.docker.com/engine/reference/builder/#from](https://docs.docker.com/engine/reference/builder/#from)
+
+```docker
+FROM node:21
+
+ARG RDS_USERNAME \
+    RDS_TYPE \
+    RDS_RORT \
+    RDS_PASSWORD \
+    RDS_HOSTNAME \
+    RDS_DB_NAME \
+    JWT_SECRET \
+    JWT_EXPIRE
+
+ENV RDS_USERNAME=${RDS_USERNAME} \
+    RDS_TYPE=${RDS_TYPE} \
+    RDS_RORT=${RDS_RORT} \
+    RDS_PASSWORD=${RDS_PASSWORD} \
+    RDS_HOSTNAME=${RDS_HOSTNAME} \
+    RDS_DB_NAME=${RDS_DB_NAME} \
+    JWT_SECRET=${JWT_SECRET} \
+    JWT_EXPIRE=${JWT_EXPIRE}
+
+RUN mkdir -p /var/app
+WORKDIR /var/app
+COPY . .
+
+RUN rm yarn.lock || true
+RUN rm package-lock.json || true
+RUN npm install
+RUN npm run build
+
+EXPOSE 3000
+CMD [ "node", "dist/main.js" ]
+```
+
+- `FORM` 은 뒤에올 명령어들을 수행할 기본이미지를 지정한다.
+- `ARG` 는 빌드 중에 전달되는 빌드의 변수들을 지정한다.
+- **`ENV`** 는 환경변수를 설정하는데 빌드중에 전달받은 ARG 변수들로 환경변수를 지정하고있다.
+- **`RUN`** 빌드 명령을 실행한다. 컨테이너 내부에 디렉토리를 생성하고 package.json 파일안에 있는 종속된 패키지들을 설치하고 build 한다.
+- `EXPOSE` 애플리케이션이 수신 대기하고 있는 포트를 설정한다.
+- `CMD` 컨테이너가 시작될 때 실행할 명령어를 지정한다. nest.js의 경우 dist폴더로 컴파일 되기 때문에 dist폴더안에 main 파일을 실행한다.
+
+### Github Access Token 발급
+
+- Setting → Developer Settings → Personal access token → Generate new token
+- workflow에 대한 권한을 허용하고 package의 대한 delete권한도 허용한다.
+- 레파지토리의 환경변수로 Token을 설정한다.
+
+### Workflow 파일 작성
+
+> 참조 : [https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions)
+
+```yaml
+name: CI/CD Docker
+
+# 트리거를 수행할 브랜치를 지정합니다.
+on:
+  push:
+    branches: [main]
+
+# 환경설정
+env:
+  DOCKER_IMAGE: ghcr.io/${{ github.actor }}/api-server
+  VERSION: ${{ github.sha }}
+  NAME: api-server
+  RDS_RORT: 3306
+jobs:
+  # 빌드 Job
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      # github repository에서 checkout
+      - uses: actions/checkout@v4
+      # docker build 수행
+      - name: Set up docker buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+      # GitHub 컨테이너 레지스트리에 로그인 후 빌드 & 푸시
+      - name: Login to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        id: docker_build
+        uses: docker/build-push-action@v5
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          push: true
+          tags: ${{ env.DOCKER_IMAGE }}:latest
+          cache-from: type=registry,ref=${{ env.DOCKER_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKER_IMAGE }}:buildcache,mode=max
+          build-args: |
+            RDS_TYPE=${{ secrets.RDS_TYPE }}
+            RDS_RORT=${{ env.RDS_RORT }}
+            RDS_PASSWORD=${{ secrets.RDS_PASSWORD }}
+            RDS_HOSTNAME=${{ secrets.RDS_HOSTNAME }}
+            RDS_DB_NAME=${{ secrets.RDS_DB_NAME }}
+            RDS_USERNAME=${{ secrets.RDS_USERNAME }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_EXPIRE=${{ secrets.JWT_EXPIRE }}
+  # 배포 Job
+  deploy:
+    needs: build # build 후에 실행되도록 정의
+    name: Deploy
+    runs-on: [self-hosted, label-go] # AWS ./configure에서 사용할 label명
+    steps:
+      - name: Login to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # 3000 -> 80 포트로 수행하도록 지정
+      - name: Docker run
+        run: |
+          docker stop ${{ env.NAME }} && docker rm ${{ env.NAME }} && docker rmi ${{ env.DOCKER_IMAGE }}:latest
+          docker run -d -p 8080:3000 --name api-server --network docker-compose_ugizz-network --restart always ${{ env.DOCKER_IMAGE }}:latest
+```
+
+---
+
+-
+
+```yaml
+name: CI/CD Docker
+
+# 트리거를 수행할 브랜치를 지정합니다.
+on:
+  push:
+    branches: [main]
+
+# 환경설정
+env:
+  DOCKER_IMAGE: ghcr.io/${{ github.actor }}/api-server
+  VERSION: ${{ github.sha }}
+  NAME: api-server
+  RDS_RORT: 3306
+```
+
+- `on` : 워크플로에 대한 트리거를 지정한다. main브랜치에 push 될때 동작된다.
+- `env` : 워크플로의 사용할수 있는 변수를 지정한다. secrets는 깃허브에 등록된 변수이다.
+
+---
+
+```yaml
+jobs:
+  # 빌드 Job
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      # github repository에서 checkout
+      - uses: actions/checkout@v4
+      # docker build 수행
+      - name: Set up docker buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+      # GitHub 컨테이너 레지스트리에 로그인 후 빌드 & 푸시
+      - name: Login to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+```
+
+- `jobs` : 워크플로가 동작할때 실행되는 job을 말한다.
+- build 라는 job을 생성한다. 이름을 ‘Bulid’로 지정 빌드의 작업권한을 부여했다.
+- steps: 작업의 실한 단계를 정의한다.
+
+1. 현재 상태에서 가상의 컨테이너 안으로 체크아웃을 진행
+2. docker 빌드를 진행
+3. GitHub Container Registry에 로그인
+
+```yaml
+      # GitHub 컨테이너 레지스트리에 로그인 후 빌드 & 푸시
+			- name: Build and push
+        id: docker_build
+        uses: docker/build-push-action@v5
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          push: true
+          tags: ${{ env.DOCKER_IMAGE }}:latest
+          cache-from: type=registry,ref=${{ env.DOCKER_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKER_IMAGE }}:buildcache,mode=max
+          build-args: |
+            RDS_TYPE=${{ secrets.RDS_TYPE }}
+            RDS_RORT=${{ env.RDS_RORT }}
+            RDS_PASSWORD=${{ secrets.RDS_PASSWORD }}
+            RDS_HOSTNAME=${{ secrets.RDS_HOSTNAME }}
+            RDS_DB_NAME=${{ secrets.RDS_DB_NAME }}
+            RDS_USERNAME=${{ secrets.RDS_USERNAME }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_EXPIRE=${{ secrets.JWT_EXPIRE }}
+```
+
+- 컨테이너 레지스트리에 빌드 후 푸시한다. 이때 cache를 지정하는데 아래는 지정했을떄와 안했을 때의 시간차이를 보여준다.
+
+![캐시적용전](https://scontent-gmp1-1.xx.fbcdn.net/v/t39.30808-6/427823762_122119689560196567_675629870747860409_n.jpg?stp=dst-jpg_s526x296&_nc_cat=103&ccb=1-7&_nc_sid=524774&_nc_ohc=hqmSzbcGqtUAX9D4ZXd&_nc_ht=scontent-gmp1-1.xx&oh=00_AfBBfcCcR4zdYJlM37J-k14kfQe-n6jRvFu14NRI5XGfSw&oe=65D3F8D1)
+
+![캐시적용후](https://scontent-gmp1-1.xx.fbcdn.net/v/t39.30808-6/427816668_122119689698196567_8301564084792111070_n.jpg?stp=dst-jpg_s526x296&_nc_cat=109&ccb=1-7&_nc_sid=524774&_nc_ohc=3DETH002KNgAX_9xjlQ&_nc_ht=scontent-gmp1-1.xx&oh=00_AfByTYxHD8R0NuH6TU4UEiplmME4u6xx19MqOhAwItYb8A&oe=65D41C87)
+
+- Build 과정에서 엄청나게 시간이 짧아 진걸 확인할수 있다.
+
+```yaml
+deploy:
+  needs: build # build 후에 실행되도록 정의
+  name: Deploy
+  runs-on: [self-hosted, label-go] # AWS ./configure에서 사용할 label명
+  steps:
+    - name: Login to ghcr
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    # 3000 -> 80 포트로 수행하도록 지정
+    - name: Docker run
+      run: |
+        docker stop ${{ env.NAME }} && docker rm ${{ env.NAME }} && docker rmi ${{ env.DOCKER_IMAGE }}:latest
+        docker run -d -p 8080:3000 --name api-server --network docker-compose_ugizz-network --restart always ${{ env.DOCKER_IMAGE }}:latest
+```
+
+- ghcr에 저장되어있는 docker image를 이용해 컨테이너를 실행시킨다.
+- docker run은 실행중인 도커 컨테이너를 중지하고 이전 버전인 컨테이너와 이미지를 삭제한다.
+- run-on 부분에서 runner가 실행된다. 이때 AWS에 등록했을 때 사용할 label 명을 작성해야 한다.
+
+## AWS에 Github Runner 설치
+
+repository → settings → Actions → Runners → Linux
+
+```yaml
+# Create a folder
+$ mkdir actions-runner && cd actions-runner# Download the latest runner package
+$ curl -o actions-runner-linux-x64-2.313.0.tar.gz -L
+https://github.com/actions/runner/releases/download/v2.313.0/actions-runner-
+linux-x64-2.313.0.tar.gz
+# Optional: Validate the hash
+$ echo "56910d6628b41f99d9a1c5fe9df54981ad5d8c9e42fc14899dcc177e222e71c4
+  actions-runner-linux-x64-2.313.0.tar.gz" | shasum -a 256 -c
+# Extract the installer
+$ tar xzf ./actions-runner-linux-x64-2.313.0.tar.gz
+```
+
+- EC2 인스턴스에서 실행한다.
+- Enter the name of the runner group to add this runner to : 엔터
+- Enter the name of runner : 엔터
+- Enter any additional label : label-go (워크플로우 yml에 작성했던 라벨명
+- Enter name of work folder : 엔터
+
+```yaml
+nohup ./run.sh &
+```
+
+- 백그라운드로 실행한다.
